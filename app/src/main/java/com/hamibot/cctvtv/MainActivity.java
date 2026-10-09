@@ -10,6 +10,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.speech.RecognizerIntent;
+import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -18,6 +19,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -40,6 +42,8 @@ public class MainActivity extends Activity {
     private LinearLayout drawer;
     private ListView channelList;
     private TextView drawerHint;
+    private View drawerScrim;
+    private TextView channelFab;
 
     private ChannelStore store;
     private ArrayList<Item> items = new ArrayList<>();
@@ -68,8 +72,33 @@ public class MainActivity extends Activity {
         drawer = findViewById(R.id.drawer);
         channelList = findViewById(R.id.channelList);
         drawerHint = findViewById(R.id.drawerHint);
-        drawerHint.setText("OK 隐藏列表   ▲▼ 换台   搜索键 语音换台");
+        drawerScrim = findViewById(R.id.drawerScrim);
+        channelFab = findViewById(R.id.channelFab);
+        boolean isTv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
+        drawerHint.setText(isTv
+                ? "OK 打开/换台列表   ▲▼ 换台   搜索键 语音换台"
+                : "≡ 打开频道列表   点频道换台   语音键换台");
         channelList.setAdapter(new ChannelAdapter());
+
+        channelFab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleDrawer();
+            }
+        });
+        drawerScrim.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleDrawer();
+            }
+        });
+        channelList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                toggleDrawer();
+                switchChannel(position);
+            }
+        });
 
         setupWebView();
         loadFixJs();
@@ -369,26 +398,28 @@ public class MainActivity extends Activity {
             } else {
                 row = new LinearLayout(MainActivity.this);
                 row.setOrientation(LinearLayout.VERTICAL);
-                row.setPadding(40, 34, 40, 34);
+                int padH = getResources().getDimensionPixelSize(R.dimen.ch_padding_h);
+                int padV = getResources().getDimensionPixelSize(R.dimen.ch_padding_v);
+                row.setPadding(padH, padV, padH, padV);
                 row.setBackgroundResource(R.drawable.channel_selector);
 
                 TextView num = new TextView(MainActivity.this);
                 num.setId(R.id.chNum);
                 num.setTextColor(Color.parseColor("#FFCC66"));
-                num.setTextSize(16);
+                num.setTextSize(TypedValue.COMPLEX_UNIT_PX, getResources().getDimension(R.dimen.ch_num));
                 row.addView(num);
 
                 TextView name = new TextView(MainActivity.this);
                 name.setId(R.id.chName);
                 name.setTextColor(Color.WHITE);
-                name.setTextSize(26);
+                name.setTextSize(TypedValue.COMPLEX_UNIT_PX, getResources().getDimension(R.dimen.ch_name));
                 name.setTypeface(null, Typeface.BOLD);
                 row.addView(name);
 
                 TextView prog = new TextView(MainActivity.this);
                 prog.setId(R.id.chProg);
                 prog.setTextColor(Color.parseColor("#99FFFFFF"));
-                prog.setTextSize(18);
+                prog.setTextSize(TypedValue.COMPLEX_UNIT_PX, getResources().getDimension(R.dimen.ch_prog));
                 row.addView(prog);
             }
             Item it = items.get(i);
@@ -408,7 +439,12 @@ public class MainActivity extends Activity {
     private void toggleDrawer() {
         drawerOpen = !drawerOpen;
         drawer.animate().translationX(drawerOpen ? 0 : -drawer.getWidth()).setDuration(160).start();
-        if (drawerOpen) channelList.requestFocus();
+        drawerScrim.setVisibility(drawerOpen ? View.VISIBLE : View.GONE);
+        if (drawerOpen) {
+            channelList.requestFocus();
+        } else {
+            web.requestFocus();
+        }
     }
 
     // ---------- 语音搜索 ----------
@@ -453,7 +489,14 @@ public class MainActivity extends Activity {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
                 || keyCode == KeyEvent.KEYCODE_ENTER
                 || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-            toggleDrawer();
+            if (drawerOpen) {
+                int sel = channelList.getSelectedItemPosition();
+                if (sel < 0) sel = current;
+                toggleDrawer();
+                switchChannel(sel);
+            } else {
+                toggleDrawer();
+            }
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_SEARCH

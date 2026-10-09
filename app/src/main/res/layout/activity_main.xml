@@ -31,35 +31,44 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
-                android:textSize="54sp"
+                android:textSize="@dimen/overlay_title"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/overlayState"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/overlay_state_margin"
                 android:textColor="#99FFFFFF"
-                android:textSize="22sp" />
+                android:textSize="@dimen/overlay_state" />
         </LinearLayout>
     </FrameLayout>
 
+    <View
+        android:id="@+id/drawerScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#40000000"
+        android:clickable="true"
+        android:focusable="false"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/drawer"
-        android:layout_width="400dp"
+        android:layout_width="@dimen/drawer_width"
         android:layout_height="match_parent"
         android:layout_gravity="left"
         android:orientation="vertical"
         android:background="#E610161F"
-        android:translationX="-400dp">
+        android:translationX="@dimen/drawer_width">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="20dp"
+            android:padding="@dimen/drawer_title_padding"
             android:text="频道列表"
             android:textColor="#FFCC66"
-            android:textSize="30sp"
+            android:textSize="@dimen/drawer_title"
             android:textStyle="bold" />
 
         <ListView
@@ -75,9 +84,23 @@
             android:id="@+id/drawerHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
+            android:padding="@dimen/drawer_hint_padding"
             android:background="#22000000"
             android:textColor="#88FFFFFF"
-            android:textSize="16sp" />
+            android:textSize="@dimen/drawer_hint" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/channelFab"
+        android:layout_width="@dimen/fab_size"
+        android:layout_height="@dimen/fab_size"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/fab_margin"
+        android:background="@drawable/fab_bg"
+        android:clickable="true"
+        android:focusable="false"
+        android:gravity="center"
+        android:text="≡"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp" />
 </FrameLayout>

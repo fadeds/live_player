@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 手机默认尺寸 -->
+    <dimen name="drawer_width">300dp</dimen>
+    <dimen name="overlay_title">30sp</dimen>
+    <dimen name="overlay_state">14sp</dimen>
+    <dimen name="overlay_state_margin">10dp</dimen>
+    <dimen name="drawer_title">20sp</dimen>
+    <dimen name="drawer_title_padding">14dp</dimen>
+    <dimen name="drawer_hint">12sp</dimen>
+    <dimen name="drawer_hint_padding">10dp</dimen>
+    <dimen name="ch_num">12sp</dimen>
+    <dimen name="ch_name">16sp</dimen>
+    <dimen name="ch_prog">12sp</dimen>
+    <dimen name="ch_padding_h">18dp</dimen>
+    <dimen name="ch_padding_v">12dp</dimen>
+    <dimen name="fab_size">48dp</dimen>
+    <dimen name="fab_margin">16dp</dimen>
+</resources>

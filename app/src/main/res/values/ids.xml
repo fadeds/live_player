@@ -3,4 +3,6 @@
     <item name="chNum" type="id" />
     <item name="chName" type="id" />
     <item name="chProg" type="id" />
+    <item name="channelFab" type="id" />
+    <item name="drawerScrim" type="id" />
 </resources>
