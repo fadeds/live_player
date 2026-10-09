@@ -10,8 +10,8 @@ android {
         applicationId "com.hamibot.cctvtv"
         minSdk 23
         targetSdk 33
-        versionCode 1
-        versionName "1.0"
+        versionCode (project.findProperty("VERSION_CODE") ?: "3").toString().toInteger()
+        versionName project.findProperty("VERSION_NAME") ?: "0.0.3"
     }
 
     signingConfigs {
