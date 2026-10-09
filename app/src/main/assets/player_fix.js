@@ -63,7 +63,7 @@
       p.style.width = '100vw';
       p.style.height = '100vh';
       p.style.zIndex = '2147483646';
-      p.style.objectFit = 'fill';
+      p.style.objectFit = 'contain';
       p.style.background = '#000';
     } catch (e) { return false; }
     return true;
