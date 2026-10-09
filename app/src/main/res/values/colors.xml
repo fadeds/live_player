@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="black">#000000</color>
+    <color name="channel_focused">#334DC9F0</color>
+    <color name="channel_selected">#3333B5E5</color>
+    <color name="channel_transparent">#00000000</color>
 </resources>
