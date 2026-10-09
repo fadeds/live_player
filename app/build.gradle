@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.hamibot.cctvtv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.hamibot.cctvtv"
+        minSdk 23
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("CCTV_KEYSTORE") ?: "release.keystore")
+            storePassword System.getenv("CCTV_KSPASS") ?: "cctv123456"
+            keyAlias System.getenv("CCTV_KEYALIAS") ?: "cctv"
+            keyPassword System.getenv("CCTV_KEYPASS") ?: "cctv123456"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+}
