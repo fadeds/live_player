@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private TextView drawerHint;
 
     private ChannelStore store;
-    private ArrayList<ChannelAdapter.Item> items = new ArrayList<>();
+    private ArrayList<Item> items = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private int current = 0;
