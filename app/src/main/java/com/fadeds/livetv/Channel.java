@@ -1,4 +1,4 @@
-﻿package com.fadeds.livetv;
+package com.fadeds.livetv;
 
 public class Channel {
     public final int index;

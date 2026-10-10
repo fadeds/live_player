@@ -1,51 +1,51 @@
-﻿package com.fadeds.livetv;
+package com.fadeds.livetv;
 
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 璇煶/鏂囧瓧棰戦亾璺敱锛氭妸璇嗗埆鍒扮殑鑷劧璇█鏄犲皠鍒?48 涓閬撲箣涓€銆?
- * 浼樺厛绾э細瀹屾暣棰戦亾鍚?> CCTV鏁板瓧 > 棰戦亾鍒О > 鐪佷唤鐭悕 > 鐗规畩鍒悕銆?
+ * 语音/文字频道路由：把识别到的自然语言映射到 48 个频道之一。
+ * 优先级：完整频道名 > CCTV数字 > 频道别称 > 省份短名 > 特殊别名。
  */
 public class VoiceSearch {
 
     private static final String[][] KV = {
-            {"涓ゅ", "2"}, {"涓€濂?, "1"}, {"浜屽", "2"}, {"涓夊", "3"},
-            {"鍥涘", "4"}, {"浜斿姞", "5+"}, {"浜斿", "5"}, {"鍏", "6"},
-            {"涓冨", "7"}, {"鍏", "8"}, {"涔濆", "9"}, {"鍗佸", "10"},
-            {"鍗佷竴濂?, "11"}, {"鍗佷簩濂?, "12"}, {"鍗佷笁濂?, "13"},
-            {"鍗佸洓濂?, "14"}, {"鍗佷簲濂?, "15"}, {"鍗佸叚濂?, "16"}, {"鍗佷竷濂?, "17"},
-            {"涓€鍙?, "1"}, {"浜屽彴", "2"}, {"涓夊彴", "3"}, {"鍥涘彴", "4"},
-            {"浜斿彴", "5"}, {"鍏彴", "6"}, {"涓冨彴", "7"}, {"鍏彴", "8"},
-            {"涔濆彴", "9"}, {"鍗佸彴", "10"}, {"鍗佷竴鍙?, "11"}, {"鍗佷簩鍙?, "12"},
-            {"鍗佷笁鍙?, "13"}, {"鍗佸洓鍙?, "14"}, {"鍗佷簲鍙?, "15"}, {"鍗佸叚鍙?, "16"},
-            {"鍗佷竷鍙?, "17"}
+            {"两套", "2"}, {"一套", "1"}, {"二套", "2"}, {"三套", "3"},
+            {"四套", "4"}, {"五加", "5+"}, {"五套", "5"}, {"六套", "6"},
+            {"七套", "7"}, {"八套", "8"}, {"九套", "9"}, {"十套", "10"},
+            {"十一套", "11"}, {"十二套", "12"}, {"十三套", "13"},
+            {"十四套", "14"}, {"十五套", "15"}, {"十六套", "16"}, {"十七套", "17"},
+            {"一台", "1"}, {"二台", "2"}, {"三台", "3"}, {"四台", "4"},
+            {"五台", "5"}, {"六台", "6"}, {"七台", "7"}, {"八台", "8"},
+            {"九台", "9"}, {"十台", "10"}, {"十一台", "11"}, {"十二台", "12"},
+            {"十三台", "13"}, {"十四台", "14"}, {"十五台", "15"}, {"十六台", "16"},
+            {"十七台", "17"}
     };
 
     private static final String[][] CCTV_KEYWORDS = {
-            {"浣撹偛璧涗簨", "CCTV-5+ 浣撹偛璧涗簨"}, {"涓枃鍥介檯", "CCTV-4 涓枃鍥介檯"},
-            {"鍐滀笟鍐滄潙", "CCTV-17 鍐滀笟鍐滄潙"}, {"濂ユ灄鍖瑰厠", "CCTV-16 濂ユ灄鍖瑰厠"},
-            {"鍥介槻鍐涗簨", "CCTV-7 鍥介槻鍐涗簨"}, {"绀句細涓庢硶", "CCTV-12 绀句細涓庢硶"},
-            {"缁煎悎", "CCTV-1 缁煎悎"}, {"璐㈢粡", "CCTV-2 璐㈢粡"}, {"缁艰壓", "CCTV-3 缁艰壓"},
-            {"浣撹偛", "CCTV-5 浣撹偛"}, {"鐢靛奖", "CCTV-6 鐢靛奖"}, {"鐢佃鍓?, "CCTV-8 鐢佃鍓?},
-            {"绾綍", "CCTV-9 绾綍"}, {"绉戞暀", "CCTV-10 绉戞暀"}, {"鎴忔洸", "CCTV-11 鎴忔洸"},
-            {"鏂伴椈", "CCTV-13 鏂伴椈"}, {"灏戝効", "CCTV-14 灏戝効"}, {"闊充箰", "CCTV-15 闊充箰"}
+            {"体育赛事", "CCTV-5+ 体育赛事"}, {"中文国际", "CCTV-4 中文国际"},
+            {"农业农村", "CCTV-17 农业农村"}, {"奥林匹克", "CCTV-16 奥林匹克"},
+            {"国防军事", "CCTV-7 国防军事"}, {"社会与法", "CCTV-12 社会与法"},
+            {"综合", "CCTV-1 综合"}, {"财经", "CCTV-2 财经"}, {"综艺", "CCTV-3 综艺"},
+            {"体育", "CCTV-5 体育"}, {"电影", "CCTV-6 电影"}, {"电视剧", "CCTV-8 电视剧"},
+            {"纪录", "CCTV-9 纪录"}, {"科教", "CCTV-10 科教"}, {"戏曲", "CCTV-11 戏曲"},
+            {"新闻", "CCTV-13 新闻"}, {"少儿", "CCTV-14 少儿"}, {"音乐", "CCTV-15 音乐"}
     };
 
     private static final String[][] SPECIAL_ALIAS = {
-            {"涓婃捣", "涓滄柟鍗"}, {"鑺掓灉", "婀栧崡鍗"}, {"绂忓缓", "涓滃崡鍗"}
+            {"上海", "东方卫视"}, {"芒果", "湖南卫视"}, {"福建", "东南卫视"}
     };
 
     public static String normalize(String raw) {
         if (raw == null) return "";
         String s = raw.toLowerCase(java.util.Locale.ROOT).trim();
-        s = s.replaceAll("[锛屻€偮枫€侊細:锛?鈥擻\-~锝?)锛堬級\\[\\]銆愩€?锛?锛乗\s]+", "");
+        s = s.replaceAll("[，。·、：:；;—\\-~～()（）\\[\\]【】?？!！\\s]+", "");
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            if (c >= '锛? && c <= '锛?) {
-                sb.append((char) ('0' + (c - '锛?)));
+            if (c >= '０' && c <= '９') {
+                sb.append((char) ('0' + (c - '０')));
             } else {
                 sb.append(c);
             }
@@ -61,7 +61,7 @@ public class VoiceSearch {
         String q = normalize(raw);
         if (q.isEmpty()) return -1;
 
-        // 1) 瀹屾暣棰戦亾鍚嶏紙鏈€闀垮尮閰嶄紭鍏堬級
+        // 1) 完整频道名（最长匹配优先）
         int best = -1, bestLen = 0;
         for (Channel c : channels) {
             String n = normalize(c.name);
@@ -72,8 +72,8 @@ public class VoiceSearch {
         }
         if (best >= 0) return best;
 
-        // 2) cctv 鏁板瓧锛氬ぎ瑙?+ / 澶13 / 14濂?/ cctv1 ...
-        Matcher m = Pattern.compile("(\\d{1,2})(\\+)?").matcher(q.replaceAll("(?i)cctv|澶|涓ぎ", ""));
+        // 2) cctv 数字：央视5+ / 央视13 / 14套 / cctv1 ...
+        Matcher m = Pattern.compile("(\\d{1,2})(\\+)?").matcher(q.replaceAll("(?i)cctv|央视|中央", ""));
         int num = -1;
         boolean plus = false;
         if (m.find()) {
@@ -91,7 +91,7 @@ public class VoiceSearch {
             }
         }
 
-        // 3) CCTV 棰戦亾鍒О锛堟寜闀垮害浼樺厛锛?
+        // 3) CCTV 频道别称（按长度优先）
         for (int i = 0; i < CCTV_KEYWORDS.length; i++) {
             for (int j = i + 1; j < CCTV_KEYWORDS.length; j++) {
                 if (CCTV_KEYWORDS[j][0].length() > CCTV_KEYWORDS[i][0].length()) {
@@ -110,7 +110,7 @@ public class VoiceSearch {
             }
         }
 
-        // 4) 鐗规畩鍒悕锛堜笂娴?>涓滄柟鍗 绛夛級
+        // 4) 特殊别名（上海->东方卫视 等）
         for (int i = 0; i < SPECIAL_ALIAS.length; i++) {
             if (q.contains(SPECIAL_ALIAS[i][0])) {
                 for (Channel c : channels) {
@@ -120,10 +120,10 @@ public class VoiceSearch {
             }
         }
 
-        // 5) 鐪佷唤鐭悕
+        // 5) 省份短名
         for (Channel c : channels) {
-            if (c.name.endsWith("鍗")) {
-                String shortName = c.name.replace("鍗", "");
+            if (c.name.endsWith("卫视")) {
+                String shortName = c.name.replace("卫视", "");
                 if (shortName.length() >= 2 && q.contains(shortName)) return c.index;
             }
         }
