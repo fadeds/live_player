@@ -227,6 +227,7 @@ public class MainActivity extends Activity {
         if (index >= store.size()) index = 0;
         current = index;
         playerReady = false;
+        resBadge.setVisibility(View.GONE);
         Channel ch = store.get(current);
 
         showOverlay(true);
@@ -348,12 +349,9 @@ public class MainActivity extends Activity {
                     if (!res.isEmpty() && res.contains("x")) {
                         resBadge.setText(res);
                         resBadge.setVisibility(View.VISIBLE);
-                    } else {
-                        resBadge.setVisibility(View.GONE);
                     }
                 } else {
                     playerReady = false;
-                    resBadge.setVisibility(View.GONE);
                 }
             }
         });

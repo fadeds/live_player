@@ -7,7 +7,7 @@
   var VW = function () { return window.innerWidth || document.documentElement.clientWidth || 1280; };
   var VH = function () { return window.innerHeight || document.documentElement.clientHeight || 720; };
   var CHANNELS = [];
-  var state = { playerReady: false, lastTime: -1, checkCount: 0 };
+  var state = { playerReady: false, lastTime: -1, checkCount: 0, sentFor: '' };
 
   // ---------- 工具 ----------
   function elRect(e) {
@@ -240,18 +240,24 @@
 
   function reportState() {
     var s = captureState();
+    var name = window.__currentChannelName || '';
     var res = '';
-    try {
-      var vids = document.querySelectorAll('video');
-      for (var i = 0; i < vids.length; i++) {
-        var v = vids[i];
-        if (v.videoWidth > 0 && v.videoHeight > 0) {
-          res = v.videoWidth + 'x' + v.videoHeight;
-          break;
+    if (s === 'playing') {
+      try {
+        var vids = document.querySelectorAll('video');
+        for (var i = 0; i < vids.length; i++) {
+          var v = vids[i];
+          if (v.videoWidth > 0 && v.videoHeight > 0) {
+            if (state.sentFor !== name) {
+              state.sentFor = name;
+              res = v.videoWidth + 'x' + v.videoHeight;
+            }
+            break;
+          }
         }
-      }
-    } catch (e) {}
-    try { window.CctvBridge && window.CctvBridge.onPlayerState(s + ':' + (window.__currentChannelName || '') + ':' + res); } catch (err) {}
+      } catch (e) {}
+    }
+    try { window.CctvBridge && window.CctvBridge.onPlayerState(s + ':' + name + ':' + res); } catch (err) {}
     return s;
   }
 
@@ -274,6 +280,7 @@
     state: function () { return reportState(); },
     playChannel: function (name) {
       window.__currentChannelName = name;
+      state.sentFor = '';
       var entries = findChannelEntries();
       var e = entries[name];
       if (!e || !e.el) { reportState(); return false; }
