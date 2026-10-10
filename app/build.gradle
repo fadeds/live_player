@@ -10,8 +10,8 @@ android {
         applicationId "com.fadeds.livetv"
         minSdk 23
         targetSdk 33
-        versionCode = project.findProperty("VERSION_CODE")?.toString()?.toInteger() ?: 7
-        versionName = project.findProperty("VERSION_NAME")?.toString() ?: "0.0.7"
+        versionCode = project.findProperty("VERSION_CODE")?.toString()?.toInteger() ?: 8
+        versionName = project.findProperty("VERSION_NAME")?.toString() ?: "0.0.8"
     }
 
     signingConfigs {

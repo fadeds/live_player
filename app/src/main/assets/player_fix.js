@@ -240,7 +240,18 @@
 
   function reportState() {
     var s = captureState();
-    try { window.CctvBridge && window.CctvBridge.onPlayerState(s + ':' + (window.__currentChannelName || '')); } catch (err) {}
+    var res = '';
+    try {
+      var vids = document.querySelectorAll('video');
+      for (var i = 0; i < vids.length; i++) {
+        var v = vids[i];
+        if (v.videoWidth > 0 && v.videoHeight > 0) {
+          res = v.videoWidth + 'x' + v.videoHeight;
+          break;
+        }
+      }
+    } catch (e) {}
+    try { window.CctvBridge && window.CctvBridge.onPlayerState(s + ':' + (window.__currentChannelName || '') + ':' + res); } catch (err) {}
     return s;
   }
 

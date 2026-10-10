@@ -5,4 +5,5 @@
     <item name="chProg" type="id" />
     <item name="channelFab" type="id" />
     <item name="drawerScrim" type="id" />
+    <item name="resBadge" type="id" />
 </resources>

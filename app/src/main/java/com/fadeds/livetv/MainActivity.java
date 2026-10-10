@@ -44,6 +44,7 @@ public class MainActivity extends Activity {
     private TextView drawerHint;
     private View drawerScrim;
     private TextView channelFab;
+    private TextView resBadge;
 
     private ChannelStore store;
     private ArrayList<Item> items = new ArrayList<>();
@@ -74,6 +75,7 @@ public class MainActivity extends Activity {
         drawerHint = findViewById(R.id.drawerHint);
         drawerScrim = findViewById(R.id.drawerScrim);
         channelFab = findViewById(R.id.channelFab);
+        resBadge = findViewById(R.id.resBadge);
         boolean isTv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
         drawerHint.setText(isTv
                 ? "OK 打开/换台列表   ▲▼ 换台   搜索键 语音换台"
@@ -336,13 +338,22 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 if (raw == null) return;
-                String st = raw.split(":")[0];
+                String[] parts = raw.split(":");
+                String st = parts[0];
                 if (st.equals("playing")) {
                     playerReady = true;
                     if (watchdog != null) handler.removeCallbacks(watchdog);
                     showOverlay(false);
+                    String res = parts.length >= 3 ? parts[2] : "";
+                    if (!res.isEmpty() && res.contains("x")) {
+                        resBadge.setText(res);
+                        resBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        resBadge.setVisibility(View.GONE);
+                    }
                 } else {
                     playerReady = false;
+                    resBadge.setVisibility(View.GONE);
                 }
             }
         });
