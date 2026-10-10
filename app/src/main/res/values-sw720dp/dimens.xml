@@ -2,6 +2,7 @@
 <resources>
     <!-- TV / 大屏（最短边 >= 720dp）沿用原电视尺寸 -->
     <dimen name="drawer_width">400dp</dimen>
+    <dimen name="drawer_hidden">-400dp</dimen>
     <dimen name="overlay_title">54sp</dimen>
     <dimen name="overlay_state">22sp</dimen>
     <dimen name="overlay_state_margin">16dp</dimen>

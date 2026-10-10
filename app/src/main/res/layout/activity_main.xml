@@ -60,7 +60,7 @@
         android:layout_gravity="left"
         android:orientation="vertical"
         android:background="#E610161F"
-        android:translationX="@dimen/drawer_width">
+        android:translationX="@dimen/drawer_hidden">
 
         <TextView
             android:layout_width="match_parent"
