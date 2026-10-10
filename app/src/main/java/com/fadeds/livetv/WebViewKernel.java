@@ -1,4 +1,4 @@
-package com.hamibot.cctvtv;
+﻿package com.fadeds.livetv;
 
 import android.content.Context;
 import android.content.pm.PackageInfo;
@@ -9,7 +9,7 @@ import java.util.Locale;
 
 public class WebViewKernel {
 
-    /** 读取当前 WebView（系统内核）的版本号字符串，如 "105.0.5195.136" */
+    /** 璇诲彇褰撳墠 WebView锛堢郴缁熷唴鏍革級鐨勭増鏈彿瀛楃涓诧紝濡?"105.0.5195.136" */
     public static String versionName(Context ctx) {
         try {
             PackageManager pm = ctx.getPackageManager();

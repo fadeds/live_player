@@ -3,15 +3,15 @@ plugins {
 }
 
 android {
-    namespace 'com.hamibot.cctvtv'
+    namespace 'com.fadeds.livetv'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.hamibot.cctvtv"
+        applicationId "com.fadeds.livetv"
         minSdk 23
         targetSdk 33
-        versionCode = project.findProperty("VERSION_CODE")?.toString()?.toInteger() ?: 5
-        versionName = project.findProperty("VERSION_NAME")?.toString() ?: "0.0.5"
+        versionCode = project.findProperty("VERSION_CODE")?.toString()?.toInteger() ?: 6
+        versionName = project.findProperty("VERSION_NAME")?.toString() ?: "0.0.6"
     }
 
     signingConfigs {

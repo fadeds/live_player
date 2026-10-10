@@ -1,11 +1,11 @@
-package com.hamibot.cctvtv;
+﻿package com.fadeds.livetv;
 
 import android.content.Context;
 import android.webkit.WebView;
 
 /**
- * 伪装成 PC 浏览器打开央视频，避免其弹出"下载 App"引导页。
- * Chrome 主版本号不写死，而是来自设备真实 WebView 内核。
+ * 浼鎴?PC 娴忚鍣ㄦ墦寮€澶棰戯紝閬垮厤鍏跺脊鍑?涓嬭浇 App"寮曞椤点€?
+ * Chrome 涓荤増鏈彿涓嶅啓姝伙紝鑰屾槸鏉ヨ嚜璁惧鐪熷疄 WebView 鍐呮牳銆?
  */
 public class UaHelper {
 
@@ -20,7 +20,7 @@ public class UaHelper {
                 + "Chrome/" + major + ".0.0.0 Safari/537.36";
     }
 
-    /** 注入桌面 UA 到指定 WebView */
+    /** 娉ㄥ叆妗岄潰 UA 鍒版寚瀹?WebView */
     public static void apply(WebView wv, Context ctx) {
         wv.getSettings().setUserAgentString(desktopUa(ctx));
     }

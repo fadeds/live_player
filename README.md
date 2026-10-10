@@ -31,7 +31,7 @@ Android TV / 手机通用的全屏直播播放器：用系统 WebView 全屏加�
 app/src/main/
 ├─ assets/channels.json        # 频道数据（可改）
 ├─ assets/player_fix.js        # 页面注入脚本（播放器钉全屏/清浮层/抓节目/换台）
-├─ java/com/hamibot/cctvtv/
+├─ java/com/fadeds/livetv/
 │  ├─ MainActivity.java        # 主界面/遥控器/换台/遮罩/超时
 │  ├─ Channel.java / ChannelStore.java
 │  ├─ UaHelper.java            # 桌面 UA（真实内核版本号）

@@ -32,7 +32,7 @@ Supports remote-control channel switching, voice search, and phone touch interac
 app/src/main/
 ├─ assets/channels.json         # channel data (editable)
 ├─ assets/player_fix.js         # injected script (pin player / hide overlays / scrape / switch)
-├─ java/com/hamibot/cctvtv/
+├─ java/com/fadeds/livetv/
 │  ├─ MainActivity.java         # UI / remote keys / switching / overlay / watchdog
 │  ├─ Channel.java / ChannelStore.java
 │  ├─ UaHelper.java             # desktop UA

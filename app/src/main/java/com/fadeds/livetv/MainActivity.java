@@ -1,4 +1,4 @@
-package com.hamibot.cctvtv;
+﻿package com.fadeds.livetv;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
     private boolean drawerOpen = false;
     private Runnable watchdog;
 
-    private String fixJs; // player_fix.js 内容
+    private String fixJs; // player_fix.js 鍐呭
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,8 +76,8 @@ public class MainActivity extends Activity {
         channelFab = findViewById(R.id.channelFab);
         boolean isTv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
         drawerHint.setText(isTv
-                ? "OK 打开/换台列表   ▲▼ 换台   搜索键 语音换台"
-                : "≡ 打开频道列表   点频道换台   语音键换台");
+                ? "OK 鎵撳紑/鎹㈠彴鍒楄〃   鈻测柤 鎹㈠彴   鎼滅储閿?璇煶鎹㈠彴"
+                : "鈮?鎵撳紑棰戦亾鍒楄〃   鐐归閬撴崲鍙?  璇煶閿崲鍙?);
         channelList.setAdapter(new ChannelAdapter());
 
         channelFab.setOnClickListener(new View.OnClickListener() {
@@ -106,10 +106,10 @@ public class MainActivity extends Activity {
         int major = WebViewKernel.majorVersion(WebViewKernel.versionName(this));
         if (major > 0 && major < 90) {
             new AlertDialog.Builder(this)
-                    .setTitle("网页内核过旧")
-                    .setMessage("设备 WebView 版本为 " + major + "，可能无法正常播放直播画面。"
-                            + "建议到应用商店升级「Android System WebView」后重启应用。")
-                    .setPositiveButton("知道了", null)
+                    .setTitle("缃戦〉鍐呮牳杩囨棫")
+                    .setMessage("璁惧 WebView 鐗堟湰涓?" + major + "锛屽彲鑳芥棤娉曟甯告挱鏀剧洿鎾敾闈€?
+                            + "寤鸿鍒板簲鐢ㄥ晢搴楀崌绾с€孉ndroid System WebView銆嶅悗閲嶅惎搴旂敤銆?)
+                    .setPositiveButton("鐭ラ亾浜?, null)
                     .show();
         }
 
@@ -151,7 +151,7 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 injectAndInit();
                 if (usingFallback || web.getProgress() == 100) {
-                    // 备用源/回源：仍走注入后播放当前台
+                    // 澶囩敤婧?鍥炴簮锛氫粛璧版敞鍏ュ悗鎾斁褰撳墠鍙?
                     try {
                         injectAndInit();
                         jsPlay(store.get(current).name);
@@ -214,7 +214,7 @@ public class MainActivity extends Activity {
         eval("window.CctvFix && window.CctvFix.playChannel('" + esc(name) + "');");
     }
 
-    // ---------- 换台 ----------
+    // ---------- 鎹㈠彴 ----------
     private void switchChannel(int index) {
         if (index < 0) index = store.size() - 1;
         if (index >= store.size()) index = 0;
@@ -224,21 +224,21 @@ public class MainActivity extends Activity {
 
         showOverlay(true);
         overlayTitle.setText(ch.displayNumber() + "  " + ch.name);
-        overlayState.setText("正在切换...");
+        overlayState.setText("姝ｅ湪鍒囨崲...");
 
         if (watchdog != null) handler.removeCallbacks(watchdog);
         watchdog = new Runnable() {
             @Override
             public void run() {
                 if (playingMatchesCurrent()) return;
-                overlayState.setText("超时，切入备用源");
+                overlayState.setText("瓒呮椂锛屽垏鍏ュ鐢ㄦ簮");
                 loadFallback(ch);
             }
         };
         handler.postDelayed(watchdog, SWITCH_WATCHDOG_MS);
 
         if (usingFallback) {
-            // 当前停在央视网备用页，先回央视频主页面再播目标台
+            // 褰撳墠鍋滃湪澶缃戝鐢ㄩ〉锛屽厛鍥炲ぎ瑙嗛涓婚〉闈㈠啀鎾洰鏍囧彴
             usingFallback = false;
             web.loadUrl(HOME_URL);
         } else {
@@ -251,11 +251,11 @@ public class MainActivity extends Activity {
         String url = ch.fallbackUrl();
         if (url != null) {
             usingFallback = true;
-            setOverlayStateLine("央视网备用源");
+            setOverlayStateLine("澶缃戝鐢ㄦ簮");
             web.loadUrl(url);
         } else {
-            // 卫视没有确定的备用源，物理回源央视频首页再播
-            setOverlayStateLine("卫视备用源暂无，重试央视频");
+            // 鍗娌℃湁纭畾鐨勫鐢ㄦ簮锛岀墿鐞嗗洖婧愬ぎ瑙嗛棣栭〉鍐嶆挱
+            setOverlayStateLine("鍗澶囩敤婧愭殏鏃狅紝閲嶈瘯澶棰?);
             web.reload();
         }
     }
@@ -286,7 +286,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    // ---------- JS 回调 ----------
+    // ---------- JS 鍥炶皟 ----------
     public void onChannelsFromJs(final String json) {
         runOnUiThread(new Runnable() {
             @Override
@@ -361,7 +361,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    // ---------- 频道列表 ----------
+    // ---------- 棰戦亾鍒楄〃 ----------
     static class Item {
         String num;
         String name;
@@ -426,7 +426,7 @@ public class MainActivity extends Activity {
             ((TextView) row.findViewById(R.id.chNum)).setText(it.num);
             ((TextView) row.findViewById(R.id.chName)).setText(it.name);
             TextView prog = (TextView) row.findViewById(R.id.chProg);
-            prog.setText(it.program != null && !it.program.isEmpty() ? it.program : "正在获取节目...");
+            prog.setText(it.program != null && !it.program.isEmpty() ? it.program : "姝ｅ湪鑾峰彇鑺傜洰...");
             if (it.current) {
                 row.setBackgroundColor(Color.parseColor("#6633B5E5"));
             } else {
@@ -447,17 +447,17 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ---------- 语音搜索 ----------
+    // ---------- 璇煶鎼滅储 ----------
     private void startVoiceSearch() {
         try {
             Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
-            i.putExtra(RecognizerIntent.EXTRA_PROMPT, "说出频道，例如 湖南卫视、CCTV-1、新闻频道");
+            i.putExtra(RecognizerIntent.EXTRA_PROMPT, "璇村嚭棰戦亾锛屼緥濡?婀栧崡鍗銆丆CTV-1銆佹柊闂婚閬?);
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
             startActivityForResult(i, 1001);
         } catch (Exception e) {
-            Toast.makeText(this, "系统没有语音识别，检查是否安装语音助手", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "绯荤粺娌℃湁璇煶璇嗗埆锛屾鏌ユ槸鍚﹀畨瑁呰闊冲姪鎵?, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -467,23 +467,23 @@ public class MainActivity extends Activity {
         if (requestCode == 1001 && resultCode == RESULT_OK && data != null) {
             ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             if (results == null || results.isEmpty()) {
-                Toast.makeText(this, "没听清，再试一次", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "娌″惉娓咃紝鍐嶈瘯涓€娆?, Toast.LENGTH_SHORT).show();
                 return;
             }
             String text = results.get(0);
             int idx = VoiceSearch.match(store.all(), text);
             if (idx >= 0) {
-                String msg = "语音：切到 " + store.get(idx).name;
+                String msg = "璇煶锛氬垏鍒?" + store.get(idx).name;
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
                 if (drawerOpen) toggleDrawer();
                 switchChannel(idx);
             } else {
-                Toast.makeText(this, "没找到频道「" + text + "」", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "娌℃壘鍒伴閬撱€? + text + "銆?, Toast.LENGTH_LONG).show();
             }
         }
     }
 
-    // ---------- 遥控器 ----------
+    // ---------- 閬ユ帶鍣?----------
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER

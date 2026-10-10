@@ -1,4 +1,4 @@
-package com.hamibot.cctvtv;
+﻿package com.fadeds.livetv;
 
 import android.content.Context;
 
@@ -35,7 +35,7 @@ public class ChannelStore {
         }
         if (store.list.isEmpty()) {
             for (int i = 0; i < 48; i++) {
-                store.list.add(new Channel(i, "频道 " + (i + 1), "cctv1", ""));
+                store.list.add(new Channel(i, "棰戦亾 " + (i + 1), "cctv1", ""));
             }
         }
         return store;

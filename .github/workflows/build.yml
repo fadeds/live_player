@@ -54,7 +54,7 @@ jobs:
             keytool -genkeypair -v -keystore app/release.keystore \
               -alias "$KS_ALIAS" -keyalg RSA -keysize 2048 -validity 36500 \
               -storepass "$KS_PASS" -keypass "$KS_PASS" \
-              -dname "CN=CctvTv, OU=CI, O=CI, L=CI, ST=CI, C=CN"
+              -dname "CN=LivePlayer, OU=CI, O=CI, L=CI, ST=CI, C=CN"
           fi
           {
             echo "CCTV_KSPASS=$KS_PASS"
