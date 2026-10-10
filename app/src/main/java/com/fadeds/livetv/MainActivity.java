@@ -199,14 +199,19 @@ public class MainActivity extends Activity {
 
     private void injectAndInit() {
         if (fixJs.isEmpty()) return;
-        StringBuilder names = new StringBuilder("[");
+        org.json.JSONArray arr = new org.json.JSONArray();
         for (Channel c : store.all()) {
-            if (names.length() > 1) names.append(',');
-            names.append('"').append(esc(c.name)).append('"');
+            org.json.JSONObject o = new org.json.JSONObject();
+            try {
+                o.put("name", c.name);
+                o.put("key", c.key == null ? "" : c.key);
+            } catch (Exception ignored) {
+            }
+            arr.put(o);
         }
-        names.append(']');
+        String json = arr.toString();
         eval("(function(){ " + fixJs + " })();");
-        eval("window.CctvFix && window.CctvFix.init('" + esc(names.toString()) + "');");
+        eval("window.CctvFix && window.CctvFix.init('" + esc(json) + "');");
         eval("window.CctvFix && window.CctvFix.listChannels();");
     }
 
