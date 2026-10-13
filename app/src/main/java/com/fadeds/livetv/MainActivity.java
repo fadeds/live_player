@@ -219,7 +219,7 @@ public class MainActivity extends Activity {
         DefaultHttpDataSource.Factory dsFactory = new DefaultHttpDataSource.Factory();
         dsFactory.setConnectTimeoutMs(10000);
         dsFactory.setReadTimeoutMs(15000);
-        dsFactory.setCrossProtocolRedirectsEnabled(true);
+        dsFactory.setAllowCrossProtocolRedirects(true);
         dsFactory.setUserAgent(STREAM_UA);
         HlsMediaSource source = new HlsMediaSource.Factory(dsFactory)
                 .createMediaSource(MediaItem.fromUri(url));
