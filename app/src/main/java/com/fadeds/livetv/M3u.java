@@ -63,6 +63,7 @@ public class M3u {
             String name = extractName(line);
             String group = attr(line, "group-title");
             if (name.isEmpty()) continue;
+            if (isOverseas(name)) continue;
 
             boolean primary = inGroup(group, PRIMARY);
             boolean backup = inGroup(group, BACKUP);
@@ -72,7 +73,8 @@ public class M3u {
             for (int j = i + 1; j < lines.length; j++) {
                 String u = lines[j].trim();
                 if (u.isEmpty()) continue;
-                if (u.startsWith("#")) break;
+                if (u.startsWith("#EXTINF")) break;
+                if (u.startsWith("#")) continue; // 注释掉的旧 URL，跳过继续找
                 url = u;
                 break;
             }
@@ -100,6 +102,13 @@ public class M3u {
         List<Channel> out = new ArrayList<>(byKey.values());
         for (Channel c : out) c.sortUrls();
         return out;
+    }
+
+    /** 仅保留大陆频道：过滤 CGTN、CCTV4 欧洲/美洲版、港澳台等。 */
+    static boolean isOverseas(String name) {
+        if (name.contains("CGTN")) return true;
+        return name.contains("香港") || name.contains("澳门") || name.contains("台湾")
+                || name.contains("欧洲") || name.contains("美洲");
     }
 
     /** 名字归一（仅用于同名合并，不能抹掉中文）。 */
