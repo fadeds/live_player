@@ -25,8 +25,8 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.exoplayer.source.HlsMediaSource;
-import androidx.media3.exoplayer.upstream.DefaultHttpDataSource;
+import androidx.media3.exoplayer.hls.HlsMediaSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.ui.PlayerView;
 
 import java.util.ArrayList;
@@ -219,7 +219,7 @@ public class MainActivity extends Activity {
         DefaultHttpDataSource.Factory dsFactory = new DefaultHttpDataSource.Factory();
         dsFactory.setConnectTimeoutMs(10000);
         dsFactory.setReadTimeoutMs(15000);
-        dsFactory.setCrossProtocolRedirects(true);
+        dsFactory.setCrossProtocolRedirectsEnabled(true);
         dsFactory.setUserAgent(STREAM_UA);
         HlsMediaSource source = new HlsMediaSource.Factory(dsFactory)
                 .createMediaSource(MediaItem.fromUri(url));
