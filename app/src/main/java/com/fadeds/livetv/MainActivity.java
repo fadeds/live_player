@@ -1,24 +1,17 @@
 package com.fadeds.livetv;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.speech.RecognizerIntent;
 import android.util.TypedValue;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
@@ -27,15 +20,27 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.InputStream;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.VideoSize;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.HlsMediaSource;
+import androidx.media3.exoplayer.upstream.DefaultHttpDataSource;
+import androidx.media3.ui.PlayerView;
+
 import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends Activity {
 
-    static final String HOME_URL = "https://www.yangshipin.cn/tv/home";
-    static final long SWITCH_WATCHDOG_MS = 20_000;
+    static final long SWITCH_WATCHDOG_MS = 15_000;
+    static final String STREAM_UA =
+            "Mozilla/5.0 (Linux; Android 10; LivePlayer) AppleWebKit/537.36 "
+                    + "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
-    private WebView web;
+    private PlayerView playerView;
+    private ExoPlayer player;
     private FrameLayout overlay;
     private TextView overlayTitle;
     private TextView overlayState;
@@ -51,12 +56,13 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private int current = 0;
-    private boolean playerReady = false;
-    private boolean usingFallback = false;
+    private int candidate = 0;
+    private int restarts = 0;
+    private boolean switching = false;
+    private boolean resShown = false;
+    private boolean started = false;
     private boolean drawerOpen = false;
     private Runnable watchdog;
-
-    private String fixJs; // player_fix.js 内容
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,7 +72,40 @@ public class MainActivity extends Activity {
         store = ChannelStore.load(this);
         buildChannelItems();
 
-        web = findViewById(R.id.webview);
+        playerView = findViewById(R.id.playerView);
+        player = new ExoPlayer.Builder(this).build();
+        playerView.setPlayer(player);
+        playerView.setUseController(false);
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlaybackStateChanged(int state) {
+                if (state == Player.STATE_READY && switching) {
+                    onPlaying();
+                } else if (state == Player.STATE_ENDED && !switching) {
+                    restartCurrent("播放结束，重试");
+                }
+            }
+
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                if (switching) {
+                    advanceCandidate("播放失败，切换线路");
+                } else {
+                    restartCurrent("连接中断，重试");
+                }
+            }
+
+            @Override
+            public void onVideoSizeChanged(VideoSize videoSize) {
+                if (!switching || resShown) return;
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    resShown = true;
+                    resBadge.setText(videoSize.width + "x" + videoSize.height);
+                    resBadge.setVisibility(View.VISIBLE);
+                }
+            }
+        });
+
         overlay = findViewById(R.id.overlay);
         overlayTitle = findViewById(R.id.overlayTitle);
         overlayState = findViewById(R.id.overlayState);
@@ -102,277 +141,146 @@ public class MainActivity extends Activity {
             }
         });
 
-        setupWebView();
-        loadFixJs();
-
-        int major = WebViewKernel.majorVersion(WebViewKernel.versionName(this));
-        if (major > 0 && major < 90) {
-            new AlertDialog.Builder(this)
-                    .setTitle("网页内核过旧")
-                    .setMessage("设备 WebView 版本为 " + major + "，可能无法正常播放直播画面。"
-                            + "建议到应用商店升级「Android System WebView」后重启应用。")
-                    .setPositiveButton("知道了", null)
-                    .show();
+        int last = getSharedPreferences("cfg", MODE_PRIVATE).getInt("last", 0);
+        if (store.size() > 0) {
+            switchChannel(last);
+        } else {
+            showOverlay(true);
+            overlayTitle.setText("Live Player");
+            overlayState.setText("正在加载频道列表...");
         }
+        refreshM3uAsync();
+    }
 
-        web.loadUrl(HOME_URL);
-
-        Runnable guard = new Runnable() {
+    // ---------- 频道列表远程刷新 ----------
+    private void refreshM3uAsync() {
+        new Thread(new Runnable() {
             @Override
             public void run() {
-                if (web.getProgress() == 100 && web.getContentHeight() > 0) {
-                    showOverlay(true);
-                    overlayTitle.setText(store.get(current).name);
-                    jsPlay(store.get(current).name);
-                } else {
-                    handler.postDelayed(this, 800);
+                try {
+                    String text = M3u.fetchRemote();
+                    final List<Channel> parsed = M3u.parse(text);
+                    if (parsed.isEmpty()) return;
+                    M3u.saveCache(MainActivity.this, text);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            String curName = store.size() > 0 ? store.get(current).name : null;
+                            store.replaceAll(parsed);
+                            if (curName != null) {
+                                int idx = store.indexOfName(curName);
+                                current = idx >= 0 ? idx : 0;
+                            }
+                            buildChannelItems();
+                            ((BaseAdapter) channelList.getAdapter()).notifyDataSetChanged();
+                            if (!started && store.size() > 0) {
+                                switchChannel(0);
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    android.util.Log.e("MainActivity", "refresh m3u failed", e);
                 }
             }
-        };
-        handler.postDelayed(guard, 2500);
-    }
-
-    // ---------- WebView ----------
-    private void setupWebView() {
-        WebSettings s = web.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setDatabaseEnabled(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setAllowFileAccess(true);
-        s.setLoadWithOverviewMode(true);
-        s.setUseWideViewPort(true);
-        s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        UaHelper.apply(web, this);
-
-        web.addJavascriptInterface(new JsBridge(this), "CctvBridge");
-        web.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                injectAndInit();
-                if (usingFallback || web.getProgress() == 100) {
-                    // 备用源/回源：仍走注入后播放当前台
-                    try {
-                        injectAndInit();
-                        jsPlay(store.get(current).name);
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
-        });
-        web.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onConsoleMessage(android.webkit.ConsoleMessage cm) {
-                if (cm.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
-                    android.util.Log.e("WebView", cm.message());
-                }
-                return true;
-            }
-        });
-    }
-
-    private void loadFixJs() {
-        try {
-            InputStream is = getAssets().open("player_fix.js");
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-            byte[] b = new byte[4096];
-            int n;
-            while ((n = is.read(b)) != -1) bos.write(b, 0, n);
-            is.close();
-            fixJs = bos.toString("UTF-8");
-        } catch (Exception e) {
-            fixJs = "";
-        }
-    }
-
-    private String esc(String s) {
-        return s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n");
-    }
-
-    private void eval(String js) {
-        try {
-            web.evaluateJavascript(js, null);
-        } catch (Throwable t) {
-            android.util.Log.e("MainActivity", "eval fail", t);
-        }
-    }
-
-    private void injectAndInit() {
-        if (fixJs.isEmpty()) return;
-        org.json.JSONArray arr = new org.json.JSONArray();
-        for (Channel c : store.all()) {
-            org.json.JSONObject o = new org.json.JSONObject();
-            try {
-                o.put("name", c.name);
-                o.put("key", c.key == null ? "" : c.key);
-            } catch (Exception ignored) {
-            }
-            arr.put(o);
-        }
-        String json = arr.toString();
-        eval("(function(){ " + fixJs + " })();");
-        eval("window.CctvFix && window.CctvFix.init('" + esc(json) + "');");
-        eval("window.CctvFix && window.CctvFix.listChannels();");
-    }
-
-    private void jsPlay(String name) {
-        eval("window.CctvFix && window.CctvFix.playChannel('" + esc(name) + "');");
+        }).start();
     }
 
     // ---------- 换台 ----------
     private void switchChannel(int index) {
+        if (store.size() == 0) return;
         if (index < 0) index = store.size() - 1;
         if (index >= store.size()) index = 0;
         current = index;
-        playerReady = false;
-        resBadge.setVisibility(View.GONE);
-        Channel ch = store.get(current);
+        candidate = 0;
+        restarts = 0;
+        started = true;
+        getSharedPreferences("cfg", MODE_PRIVATE).edit().putInt("last", current).apply();
 
+        Channel ch = store.get(current);
         showOverlay(true);
         overlayTitle.setText(ch.displayNumber() + "  " + ch.name);
-        overlayState.setText("正在切换...");
+        overlayState.setText(ch.urlCount() > 1 ? "正在切换...（" + ch.urlCount() + " 条线路）" : "正在切换...");
+        resBadge.setVisibility(View.GONE);
+        resShown = false;
+        switching = true;
+        buildChannelItems();
+        ((BaseAdapter) channelList.getAdapter()).notifyDataSetChanged();
+        playCandidate();
+    }
 
+    private void playCandidate() {
+        Channel ch = store.get(current);
+        String url = ch.urlAt(candidate);
+        if (url == null) {
+            failAll("该频道没有可用线路，按▲▼换台");
+            return;
+        }
+        startWatchdog();
+        DefaultHttpDataSource.Factory dsFactory = new DefaultHttpDataSource.Factory();
+        dsFactory.setConnectTimeoutMs(10000);
+        dsFactory.setReadTimeoutMs(15000);
+        dsFactory.setCrossProtocolRedirects(true);
+        dsFactory.setUserAgent(STREAM_UA);
+        HlsMediaSource source = new HlsMediaSource.Factory(dsFactory)
+                .createMediaSource(MediaItem.fromUri(url));
+        player.setMediaSource(source);
+        player.prepare();
+        player.setPlayWhenReady(true);
+    }
+
+    private void advanceCandidate(String msg) {
+        if (!switching) return;
+        candidate++;
+        overlayState.setText(msg + "（" + Math.min(candidate + 1, store.get(current).urlCount())
+                + "/" + store.get(current).urlCount() + "）");
+        playCandidate();
+    }
+
+    private void failAll(String msg) {
+        switching = false;
+        if (watchdog != null) handler.removeCallbacks(watchdog);
+        overlayState.setText(msg);
+        try { player.stop(); } catch (Throwable ignored) {}
+    }
+
+    private void restartCurrent(String msg) {
+        if (switching || store.size() == 0) return;
+        restarts++;
+        if (restarts > 3) {
+            failAll("线路不稳定，按▲▼换台");
+            return;
+        }
+        candidate = 0;
+        resShown = false;
+        resBadge.setVisibility(View.GONE);
+        switching = true;
+        showOverlay(true);
+        overlayState.setText(msg);
+        playCandidate();
+    }
+
+    private void startWatchdog() {
         if (watchdog != null) handler.removeCallbacks(watchdog);
         watchdog = new Runnable() {
             @Override
             public void run() {
-                if (playingMatchesCurrent()) return;
-                overlayState.setText("超时，切入备用源");
-                loadFallback(ch);
+                if (!switching) return;
+                advanceCandidate("超时，切换线路");
             }
         };
         handler.postDelayed(watchdog, SWITCH_WATCHDOG_MS);
-
-        if (usingFallback) {
-            // 当前停在央视网备用页，先回央视频主页面再播目标台
-            usingFallback = false;
-            web.loadUrl(HOME_URL);
-        } else {
-            jsPlay(ch.name);
-            injectAndInit();
-        }
     }
 
-    private void loadFallback(Channel ch) {
-        String url = ch.fallbackUrl();
-        if (url != null) {
-            usingFallback = true;
-            setOverlayStateLine("央视网备用源");
-            web.loadUrl(url);
-        } else {
-            // 卫视没有确定的备用源，物理回源央视频首页再播
-            setOverlayStateLine("卫视备用源暂无，重试央视频");
-            web.reload();
-        }
-    }
-
-    private boolean playingMatchesCurrent() {
-        return playerReady && current >= 0 && current < store.size();
+    private void onPlaying() {
+        switching = false;
+        restarts = 0;
+        if (watchdog != null) handler.removeCallbacks(watchdog);
+        showOverlay(false);
     }
 
     private void showOverlay(boolean show) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                overlay.setVisibility(show ? View.VISIBLE : View.GONE);
-                if (show) overlay.requestFocus();
-            }
-        });
-    }
-
-    private void setOverlayStateLine(final String s) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    overlayState.setText(s);
-                } catch (Exception ignored) {
-                }
-            }
-        });
-    }
-
-    // ---------- JS 回调 ----------
-    public void onChannelsFromJs(final String json) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (json == null || json.equals("ping") || !json.trim().startsWith("[")) return;
-                try {
-                    org.json.JSONArray arr = new org.json.JSONArray(json);
-                    for (int i = 0; i < arr.length() && i < store.size(); i++) {
-                        org.json.JSONObject o = arr.getJSONObject(i);
-                        Channel c = store.get(i);
-                        if (o.optString("name").equals(c.name)) {
-                            c.program = o.optString("program", "");
-                        }
-                    }
-                    buildChannelItems();
-                    ((BaseAdapter) channelList.getAdapter()).notifyDataSetChanged();
-                } catch (Exception e) {
-                    android.util.Log.e("MainActivity", "channels parse fail", e);
-                }
-            }
-        });
-    }
-
-    public void onProgramFromJs(final String name, final String program) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (name == null || program == null) return;
-                for (Channel c : store.all()) {
-                    if (c.name.equals(name)) {
-                        c.program = program;
-                        ((BaseAdapter) channelList.getAdapter()).notifyDataSetChanged();
-                        break;
-                    }
-                }
-            }
-        });
-    }
-
-    public void onPlayerStateFromJs(final String raw) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (raw == null) return;
-                String[] parts = raw.split(":");
-                String st = parts[0];
-                if (st.equals("playing")) {
-                    playerReady = true;
-                    if (watchdog != null) handler.removeCallbacks(watchdog);
-                    showOverlay(false);
-                    String res = parts.length >= 3 ? parts[2] : "";
-                    if (!res.isEmpty() && res.contains("x")) {
-                        resBadge.setText(res);
-                        resBadge.setVisibility(View.VISIBLE);
-                    }
-                } else {
-                    playerReady = false;
-                }
-            }
-        });
-    }
-
-    public void requestTap(final float x, final float y) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    long now = SystemClock.uptimeMillis();
-                    MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0);
-                    web.dispatchTouchEvent(down);
-                    down.recycle();
-                    MotionEvent up = MotionEvent.obtain(now, now + 60, MotionEvent.ACTION_UP, x, y, 0);
-                    web.dispatchTouchEvent(up);
-                    up.recycle();
-                } catch (Throwable ignored) {
-                }
-            }
-        });
+        overlay.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show) overlay.requestFocus();
     }
 
     // ---------- 频道列表 ----------
@@ -390,7 +298,7 @@ public class MainActivity extends Activity {
     private void buildChannelItems() {
         items.clear();
         for (Channel c : store.all()) {
-            items.add(new Item(c.displayNumber(), c.name, c.program, c.index == current));
+            items.add(new Item(c.displayNumber(), c.name, c.group, c.index == current));
         }
     }
 
@@ -440,7 +348,7 @@ public class MainActivity extends Activity {
             ((TextView) row.findViewById(R.id.chNum)).setText(it.num);
             ((TextView) row.findViewById(R.id.chName)).setText(it.name);
             TextView prog = (TextView) row.findViewById(R.id.chProg);
-            prog.setText(it.program != null && !it.program.isEmpty() ? it.program : "正在获取节目...");
+            prog.setText(it.program != null && !it.program.isEmpty() ? it.program : " ");
             if (it.current) {
                 row.setBackgroundColor(Color.parseColor("#6633B5E5"));
             } else {
@@ -456,8 +364,9 @@ public class MainActivity extends Activity {
         drawerScrim.setVisibility(drawerOpen ? View.VISIBLE : View.GONE);
         if (drawerOpen) {
             channelList.requestFocus();
+            channelList.setSelection(current);
         } else {
-            web.requestFocus();
+            channelList.clearFocus();
         }
     }
 
@@ -556,7 +465,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (watchdog != null) handler.removeCallbacks(watchdog);
-        try { web.destroy(); } catch (Throwable ignored) {}
+        handler.removeCallbacksAndMessages(null);
+        try {
+            player.release();
+        } catch (Throwable ignored) {}
         super.onDestroy();
     }
 }
