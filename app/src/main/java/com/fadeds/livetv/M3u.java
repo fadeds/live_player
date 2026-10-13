@@ -62,6 +62,12 @@ public class M3u {
 
             String name = extractName(line);
             String group = attr(line, "group-title");
+            String ua = attr(line, "http-user-agent");
+            String ref = attr(line, "http-referer");
+            if (ref == null) {
+                String hh = attr(line, "http-header");
+                if (hh != null && hh.startsWith("Referer=")) ref = hh.substring("Referer=".length());
+            }
             if (name.isEmpty()) continue;
             if (isOverseas(name)) continue;
 
@@ -85,18 +91,23 @@ public class M3u {
             Channel exist = byKey.get(mk);
             if (exist != null) {
                 exist.addUrl(url);
+                exist.setMeta(exist.urlCount() - 1, ua, ref);
             } else if (primary) {
                 Channel c = new Channel(byKey.size(), name, group);
                 c.addUrl(url);
+                c.setMeta(c.urlCount() - 1, ua, ref);
                 byKey.put(mk, c);
             } else {
-                pendingBackups.add(new String[]{mk, url});
+                pendingBackups.add(new String[]{mk, url, ua, ref});
             }
         }
 
         for (String[] pb : pendingBackups) {
             Channel c = byKey.get(pb[0]);
-            if (c != null) c.addUrl(pb[1]);
+            if (c != null) {
+                c.addUrl(pb[1]);
+                c.setMeta(c.urlCount() - 1, pb[2], pb[3]);
+            }
         }
 
         List<Channel> out = new ArrayList<>(byKey.values());

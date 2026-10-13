@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Live Player</title>
+<link rel="stylesheet" href="vendor/video-js.min.css">
+<style>
+html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; }
+#vg { width:100%; height:100%; position:absolute; top:0; left:0; background:#000; }
+.video-js .vjs-tech { object-fit:contain; }
+.video-js .vjs-big-play-button { display:none !important; }
+.video-js .vjs-control-bar { display:none !important; }
+</style>
+</head>
+<body>
+<video id="vg" class="video-js vjs-default-skin" playsinline webkit-playsinline></video>
+<script>
+(function () {
+  function rep(name, payload) {
+    try { if (window.Android && window.Android[name]) window.Android[name](payload); } catch (e) {}
+  }
+  var player = null;
+
+  function reportSize() {
+    if (!player) return;
+    try {
+      var w = player.videoWidth(), h = player.videoHeight();
+      if (w > 0 && h > 0) rep('onVideoSize', w + 'x' + h);
+    } catch (e) {}
+  }
+
+  function init() {
+    if (player) return;
+    if (typeof videojs === 'undefined') { rep('onError', 'video.js 加载失败'); return; }
+    try {
+      player = videojs('vg', {
+        autoplay: true,
+        controls: false,
+        preload: 'auto',
+        playsinline: true,
+        liveui: false,
+        fluid: false,
+        nativeControlsForTouch: false,
+        html5: { vhs: { overrideNative: true } },
+        sources: []
+      });
+    } catch (e) { rep('onError', 'player 初始化失败: ' + e.message); return; }
+    player.on('playing', function () { rep('onPlaying'); reportSize(); });
+    player.on('ended', function () { rep('onEnded'); });
+    player.on('loadedmetadata', reportSize);
+    player.on('canplay', reportSize);
+    player.on('error', function () {
+      var e = player && player.error ? player.error() : null;
+      var m = (e && e.message) ? e.message : '播放错误';
+      rep('onError', '' + m);
+    });
+    rep('onReady');
+  }
+
+  window.play = function (url) {
+    init();
+    if (!player) return;
+    try {
+      player.src({ src: url, type: 'application/x-mpegURL' });
+      player.ready(function () {
+        try { var p = player.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      });
+    } catch (e) { rep('onError', '无法加载: ' + e.message); }
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

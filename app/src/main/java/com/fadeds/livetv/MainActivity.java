@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -12,6 +13,13 @@ import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
@@ -20,17 +28,14 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.PlaybackException;
-import androidx.media3.common.Player;
-import androidx.media3.common.VideoSize;
-import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.exoplayer.hls.HlsMediaSource;
-import androidx.media3.datasource.DefaultHttpDataSource;
-import androidx.media3.ui.PlayerView;
-
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends Activity {
 
@@ -39,8 +44,7 @@ public class MainActivity extends Activity {
             "Mozilla/5.0 (Linux; Android 10; LivePlayer) AppleWebKit/537.36 "
                     + "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
-    private PlayerView playerView;
-    private ExoPlayer player;
+    private WebView playerView;
     private FrameLayout overlay;
     private TextView overlayTitle;
     private TextView overlayState;
@@ -62,6 +66,8 @@ public class MainActivity extends Activity {
     private boolean resShown = false;
     private boolean started = false;
     private boolean drawerOpen = false;
+    private boolean playerReady = false;
+    private String pendingPlayUrl = null;
     private Runnable watchdog;
 
     @Override
@@ -72,39 +78,8 @@ public class MainActivity extends Activity {
         store = ChannelStore.load(this);
         buildChannelItems();
 
-        playerView = findViewById(R.id.playerView);
-        player = new ExoPlayer.Builder(this).build();
-        playerView.setPlayer(player);
-        playerView.setUseController(false);
-        player.addListener(new Player.Listener() {
-            @Override
-            public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_READY && switching) {
-                    onPlaying();
-                } else if (state == Player.STATE_ENDED && !switching) {
-                    restartCurrent("播放结束，重试");
-                }
-            }
-
-            @Override
-            public void onPlayerError(PlaybackException error) {
-                if (switching) {
-                    advanceCandidate("播放失败，切换线路");
-                } else {
-                    restartCurrent("连接中断，重试");
-                }
-            }
-
-            @Override
-            public void onVideoSizeChanged(VideoSize videoSize) {
-                if (!switching || resShown) return;
-                if (videoSize.width > 0 && videoSize.height > 0) {
-                    resShown = true;
-                    resBadge.setText(videoSize.width + "x" + videoSize.height);
-                    resBadge.setVisibility(View.VISIBLE);
-                }
-            }
-        });
+        playerView = (WebView) findViewById(R.id.playerView);
+        setupWebView();
 
         overlay = findViewById(R.id.overlay);
         overlayTitle = findViewById(R.id.overlayTitle);
@@ -152,7 +127,255 @@ public class MainActivity extends Activity {
         refreshM3uAsync();
     }
 
+    // ---------- 播放内核（WebView + video.js + 原生网络代理） ----------
+
+    private void setupWebView() {
+        WebSettings s = playerView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(true);
+        s.setAllowFileAccessFromFileURLs(true); // file:// 页可跨域请求
+        s.setAllowUniversalAccessFromFileURLs(true); // 直连兜底：绕过 CORS
+        s.setMediaPlaybackRequiresUserGesture(false); // 允许自动播放
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        s.setUserAgentString(STREAM_UA);
+        playerView.setBackgroundColor(Color.BLACK);
+        playerView.setKeepScreenOn(true);
+        playerView.setFocusable(false); // 遥控焦点交给系统，避免 WebView 吞键
+        playerView.setFocusableInTouchMode(false);
+        playerView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return true;
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return true;
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+                return proxy(url, null);
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                if (request == null || request.getUrl() == null) return null;
+                if ("OPTIONS".equals(request.getMethod())) return preflightOk();
+                Map<String, String> hs = request.getRequestHeaders();
+                String range = hs != null ? hs.get("Range") : null;
+                return proxy(request.getUrl().toString(), range);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                android.util.Log.w("WebView", "load error " + errorCode + " " + description + " " + failingUrl);
+            }
+        });
+        playerView.setWebChromeClient(new WebChromeClient());
+        playerView.addJavascriptInterface(new PublicBridge(), "Android");
+        playerView.loadUrl("file:///android_asset/player.html");
+    }
+
+    private class PublicBridge {
+        @JavascriptInterface
+        public void onReady() {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    playerReady = true;
+                    if (pendingPlayUrl != null) {
+                        String u = pendingPlayUrl;
+                        pendingPlayUrl = null;
+                        playUrlJs(u);
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onPlaying() {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    onPlaying();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onEnded() {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (!switching) restartCurrent("播放结束，重试");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onError(String msg) {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    android.util.Log.w("Player", "js error: " + msg);
+                    if (switching) {
+                        advanceCandidate("播放失败，切换线路");
+                    } else {
+                        restartCurrent("连接中断，重试");
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onVideoSize(String size) {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (!switching || resShown) return;
+                    if (size == null) return;
+                    int x = size.indexOf('x');
+                    if (x <= 0) return;
+                    try {
+                        int w = Integer.parseInt(size.substring(0, x));
+                        int h = Integer.parseInt(size.substring(x + 1));
+                        if (w > 0 && h > 0) {
+                            resShown = true;
+                            resBadge.setText(w + "x" + h);
+                            resBadge.setVisibility(View.VISIBLE);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
+        }
+    }
+
+    private void playUrl(String url) {
+        if (!playerReady) {
+            pendingPlayUrl = url;
+            return;
+        }
+        playUrlJs(url);
+    }
+
+    private void playUrlJs(String url) {
+        try {
+            playerView.evaluateJavascript("play(" + org.json.JSONObject.quote(url) + ")", null);
+        } catch (Throwable t) {
+            android.util.Log.w("Player", "play() call failed", t);
+        }
+    }
+
+    /**
+     * 原生网络代理：转发 Range/透传 UA/Referer、回填 CORS、按需断流，
+     * 让 video.js(VHS/XHR+MSE) 能跨域拉取任意源的 m3u8/分片/密钥。
+     */
+    private WebResourceResponse proxy(String urlStr, String range) {
+        if (urlStr == null) return null;
+        Uri u = Uri.parse(urlStr);
+        String scheme = u.getScheme();
+        if (scheme == null || (!"http".equals(scheme) && !"https".equals(scheme))) return null;
+
+        Channel ch = store.get(current);
+        String cua = ch != null ? ch.uaAt(candidate) : null;
+        String cref = ch != null ? ch.refererAt(candidate) : null;
+        if (cua == null) cua = STREAM_UA;
+
+        HttpURLConnection conn = null;
+        try {
+            URL target = new URL(urlStr);
+            int hops = 0;
+            while (true) {
+                conn = (HttpURLConnection) target.openConnection();
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(20000);
+                conn.setRequestProperty("User-Agent", cua);
+                if (cref != null) conn.setRequestProperty("Referer", cref);
+                conn.setRequestProperty("Accept", "*/*");
+                conn.setRequestProperty("Accept-Encoding", "identity");
+                if (range != null) conn.setRequestProperty("Range", range);
+
+                int code = conn.getResponseCode();
+                if (code >= 300 && code < 400 && hops < 6) {
+                    String loc = conn.getHeaderField("Location");
+                    conn.disconnect();
+                    conn = null;
+                    if (loc == null || loc.isEmpty()) return null;
+                    target = new URL(target, loc);
+                    hops++;
+                    continue;
+                }
+                break;
+            }
+
+            final int code = conn.getResponseCode();
+            String reason = conn.getResponseMessage();
+            InputStream raw;
+            if (code >= 400) {
+                raw = conn.getErrorStream();
+            } else if (code == 204 || code == 304) {
+                raw = null;
+            } else {
+                raw = conn.getInputStream();
+            }
+
+            String mime = conn.getContentType();
+            if (mime == null) mime = "application/octet-stream";
+            mime = mime.split(";")[0].trim();
+
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Access-Control-Allow-Origin", "*");
+            String cl = conn.getHeaderField("Content-Length");
+            if (cl != null) headers.put("Content-Length", cl);
+            String cr = conn.getHeaderField("Content-Range");
+            if (cr != null) headers.put("Content-Range", cr);
+            String ar = conn.getHeaderField("Accept-Ranges");
+            if (ar != null) headers.put("Accept-Ranges", ar);
+
+            if (raw == null) {
+                conn.disconnect();
+                return new WebResourceResponse(mime, "utf-8", code, reason,
+                        headers, new ByteArrayInputStream(new byte[0]));
+            }
+
+            final HttpURLConnection c = conn;
+            InputStream wrapped = new InputStream() {
+                @Override
+                public int read() throws java.io.IOException { return raw.read(); }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws java.io.IOException { return raw.read(b, off, len); }
+
+                @Override
+                public void close() throws java.io.IOException {
+                    try { raw.close(); } finally {
+                        try { c.disconnect(); } catch (Throwable ignored) {}
+                    }
+                }
+            };
+            return new WebResourceResponse(mime, null, code, reason, headers, wrapped);
+        } catch (Throwable t) {
+            if (conn != null) { try { conn.disconnect(); } catch (Throwable ignored) {} }
+            // 返回 null 让 WebView 直连（file:// 通用访问可绕过 CORS）兜底
+            return null;
+        }
+    }
+
+    private WebResourceResponse preflightOk() {
+        Map<String, String> h = new HashMap<>();
+        h.put("Access-Control-Allow-Origin", "*");
+        h.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        h.put("Access-Control-Allow-Headers", "*");
+        return new WebResourceResponse("text/plain", "utf-8", 200, "OK",
+                h, new ByteArrayInputStream(new byte[0]));
+    }
+
     // ---------- 频道列表远程刷新 ----------
+
     private void refreshM3uAsync() {
         new Thread(new Runnable() {
             @Override
@@ -186,6 +409,7 @@ public class MainActivity extends Activity {
     }
 
     // ---------- 换台 ----------
+
     private void switchChannel(int index) {
         if (store.size() == 0) return;
         if (index < 0) index = store.size() - 1;
@@ -216,16 +440,7 @@ public class MainActivity extends Activity {
             return;
         }
         startWatchdog();
-        DefaultHttpDataSource.Factory dsFactory = new DefaultHttpDataSource.Factory();
-        dsFactory.setConnectTimeoutMs(10000);
-        dsFactory.setReadTimeoutMs(15000);
-        dsFactory.setAllowCrossProtocolRedirects(true);
-        dsFactory.setUserAgent(STREAM_UA);
-        HlsMediaSource source = new HlsMediaSource.Factory(dsFactory)
-                .createMediaSource(MediaItem.fromUri(url));
-        player.setMediaSource(source);
-        player.prepare();
-        player.setPlayWhenReady(true);
+        playUrl(url);
     }
 
     private void advanceCandidate(String msg) {
@@ -240,7 +455,6 @@ public class MainActivity extends Activity {
         switching = false;
         if (watchdog != null) handler.removeCallbacks(watchdog);
         overlayState.setText(msg);
-        try { player.stop(); } catch (Throwable ignored) {}
     }
 
     private void restartCurrent(String msg) {
@@ -284,6 +498,7 @@ public class MainActivity extends Activity {
     }
 
     // ---------- 频道列表 ----------
+
     static class Item {
         String num;
         String name;
@@ -371,6 +586,7 @@ public class MainActivity extends Activity {
     }
 
     // ---------- 语音搜索 ----------
+
     private void startVoiceSearch() {
         try {
             Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -407,6 +623,7 @@ public class MainActivity extends Activity {
     }
 
     // ---------- 遥控器 ----------
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
@@ -467,7 +684,8 @@ public class MainActivity extends Activity {
         if (watchdog != null) handler.removeCallbacks(watchdog);
         handler.removeCallbacksAndMessages(null);
         try {
-            player.release();
+            playerView.removeAllViews();
+            playerView.destroy();
         } catch (Throwable ignored) {}
         super.onDestroy();
     }
