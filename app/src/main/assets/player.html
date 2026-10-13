@@ -46,17 +46,39 @@ html, body { margin:0; padding:0; width:100%; height:100%; background:#000; over
         sources: []
       });
     } catch (e) { rep('onError', 'player 初始化失败: ' + e.message); return; }
-    player.on('playing', function () { rep('onPlaying'); reportSize(); });
+    player.on('loadstart', function () { rep('onLoading', player.currentSrc() || ''); });
+    player.on('waiting', function () { rep('onWaiting', ''); });
+    player.on('stalled', function () { rep('onWaiting', 'stalled'); });
+    player.on('playing', function () {
+      try { if (player.muted()) player.muted(false); } catch (e) {}
+      rep('onPlaying');
+      reportSize();
+    });
     player.on('ended', function () { rep('onEnded'); });
     player.on('loadedmetadata', reportSize);
     player.on('canplay', reportSize);
     player.on('error', function () {
       var e = player && player.error ? player.error() : null;
-      var m = (e && e.message) ? e.message : '播放错误';
-      rep('onError', '' + m);
+      var m = e ? ((e.code || '') + ' ' + e.message) : '播放错误';
+      if (e && e.details) m += ' [' + e.details + ']';
+      rep('onError', m);
     });
+    window.__lpReady = true;
     rep('onReady');
   }
+
+  window.getDebug = function () {
+    if (!player) return 'no-player';
+    var e = player.error ? player.error() : null;
+    return JSON.stringify({
+      src: player.currentSrc() || '',
+      err: e ? ((e.code || '') + '/' + (e.message || '') + (e.details ? '/' + e.details : '')) : '',
+      rdy: player.readyState(),
+      net: player.networkState(),
+      tech: player.techName_ || '',
+      sz: player.videoWidth() + 'x' + player.videoHeight()
+    });
+  };
 
   window.play = function (url) {
     init();
@@ -64,7 +86,11 @@ html, body { margin:0; padding:0; width:100%; height:100%; background:#000; over
     try {
       player.src({ src: url, type: 'application/x-mpegURL' });
       player.ready(function () {
-        try { var p = player.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+        try {
+          if (!player.muted()) player.muted(true); // 先静音自动播放，出画后取消静音
+          var p = player.play();
+          if (p && p.catch) p.catch(function () { rep('onError', '自动播放被阻止'); });
+        } catch (e) {}
       });
     } catch (e) { rep('onError', '无法加载: ' + e.message); }
   };

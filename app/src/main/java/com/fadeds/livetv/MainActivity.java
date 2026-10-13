@@ -18,6 +18,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
+import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.AdapterView;
@@ -39,7 +40,7 @@ import java.util.Map;
 
 public class MainActivity extends Activity {
 
-    static final long SWITCH_WATCHDOG_MS = 15_000;
+    static final long SWITCH_WATCHDOG_MS = 20_000;
     static final String STREAM_UA =
             "Mozilla/5.0 (Linux; Android 10; LivePlayer) AppleWebKit/537.36 "
                     + "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
@@ -54,6 +55,7 @@ public class MainActivity extends Activity {
     private View drawerScrim;
     private TextView channelFab;
     private TextView resBadge;
+    private TextView debugText;
 
     private ChannelStore store;
     private ArrayList<Item> items = new ArrayList<>();
@@ -90,6 +92,7 @@ public class MainActivity extends Activity {
         drawerScrim = findViewById(R.id.drawerScrim);
         channelFab = findViewById(R.id.channelFab);
         resBadge = findViewById(R.id.resBadge);
+        debugText = findViewById(R.id.debugText);
         boolean isTv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
         drawerHint.setText(isTv
                 ? "OK 打开/换台列表   ▲▼ 换台   搜索键 语音换台"
@@ -171,6 +174,22 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                 android.util.Log.w("WebView", "load error " + errorCode + " " + description + " " + failingUrl);
+                updateDebug("页面错误 " + errorCode + "/" + failingUrl);
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                android.util.Log.i("WebView", "page finished " + url);
+                try {
+                    view.evaluateJavascript(
+                            "window.__lpReady ? 'js-ready' : (typeof videojs !== 'undefined' ? 'js-ok' : 'no-js')",
+                            new ValueCallback<String>() {
+                                @Override
+                                public void onReceiveValue(String value) {
+                                    if (value != null && value.contains("no-js")) updateDebug("页面已加载，但 video.js 未定义");
+                                }
+                            });
+                } catch (Throwable ignored) {}
             }
         });
         playerView.setWebChromeClient(new WebChromeClient());
@@ -185,11 +204,31 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     playerReady = true;
+                    updateDebug("播放器就绪");
                     if (pendingPlayUrl != null) {
                         String u = pendingPlayUrl;
                         pendingPlayUrl = null;
                         playUrlJs(u);
                     }
+                }
+            });
+        }
+
+        public void onLoading(String url) {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    updateDebug("载入 " + shortHost(url));
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onWaiting(String why) {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    updateDebug("缓冲中");
                 }
             });
         }
@@ -209,6 +248,7 @@ public class MainActivity extends Activity {
             handler.post(new Runnable() {
                 @Override
                 public void run() {
+                    updateDebug("播放结束");
                     if (!switching) restartCurrent("播放结束，重试");
                 }
             });
@@ -220,6 +260,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     android.util.Log.w("Player", "js error: " + msg);
+                    updateDebug("出错: " + msg);
                     if (switching) {
                         advanceCandidate("播放失败，切换线路");
                     } else {
@@ -439,6 +480,7 @@ public class MainActivity extends Activity {
             failAll("该频道没有可用线路，按▲▼换台");
             return;
         }
+        updateDebug("▶ " + shortHost(url) + " 线路" + (candidate + 1) + "/" + ch.urlCount());
         startWatchdog();
         playUrl(url);
     }
@@ -455,6 +497,8 @@ public class MainActivity extends Activity {
         switching = false;
         if (watchdog != null) handler.removeCallbacks(watchdog);
         overlayState.setText(msg);
+        updateDebug("全部线路失败");
+        dumpPlayerState("失败");
     }
 
     private void restartCurrent(String msg) {
@@ -479,6 +523,8 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 if (!switching) return;
+                updateDebug("超时，正在切换线路");
+                dumpPlayerState("超时");
                 advanceCandidate("超时，切换线路");
             }
         };
@@ -489,7 +535,43 @@ public class MainActivity extends Activity {
         switching = false;
         restarts = 0;
         if (watchdog != null) handler.removeCallbacks(watchdog);
+        updateDebug("播放中 " + (resShown ? resBadge.getText() : ""));
         showOverlay(false);
+    }
+
+    private void updateDebug(String msg) {
+        if (debugText == null) return;
+        if (msg == null || msg.isEmpty()) return;
+        try {
+            debugText.setText(msg);
+            debugText.setVisibility(View.VISIBLE);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 从播放页拉取 video.js 内部状态，用于诊断线路超时/失败。 */
+    private void dumpPlayerState(final String tag) {
+        if (playerView == null || !playerReady) return;
+        try {
+            playerView.evaluateJavascript("window.getDebug ? getDebug() : 'no-getDebug'",
+                    new ValueCallback<String>() {
+                        @Override
+                        public void onReceiveValue(String value) {
+                            if (value != null && !value.isEmpty()) updateDebug(tag + " " + value);
+                        }
+                    });
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static String shortHost(String u) {
+        try {
+            String h = Uri.parse(u).getHost();
+            if (h == null) return "?";
+            return h.replace("www.", "");
+        } catch (Throwable t) {
+            return "?";
+        }
     }
 
     private void showOverlay(boolean show) {
