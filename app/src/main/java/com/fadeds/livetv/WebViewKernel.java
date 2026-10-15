@@ -32,7 +32,7 @@ public class WebViewKernel {
             }
             if (best.isEmpty()) {
                 try {
-                    best = android.webkit.WebView.getDefaultUserAgent(ctx);
+                    best = android.webkit.WebSettings.getDefaultUserAgent(ctx);
                 } catch (Throwable t) {
                     best = "";
                 }
