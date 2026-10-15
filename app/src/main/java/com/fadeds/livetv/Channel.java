@@ -9,9 +9,9 @@ public class Channel {
 
     public Channel(int index, String name, String key, String pid) {
         this.index = index;
-        this.name = name == null ? "" : name;
-        this.key = key == null ? "" : key;
-        this.pid = pid == null ? "" : pid;
+        this.name = name;
+        this.key = key;
+        this.pid = pid;
     }
 
     public String displayNumber() {
@@ -23,7 +23,6 @@ public class Channel {
         return key != null && key.startsWith("cctv");
     }
 
-    /** CCTV 频道在央视网的备用直播页。 */
     public String fallbackUrl() {
         if (isCctv()) {
             return "https://tv.cctv.com/live/" + key + "/index.shtml";

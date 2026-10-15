@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 语音/文字频道路由：把识别到的自然语言映射到频道之一。
+ * 语音/文字频道路由：把识别到的自然语言映射到 48 个频道之一。
  * 优先级：完整频道名 > CCTV数字 > 频道别称 > 省份短名 > 特殊别名。
  */
 public class VoiceSearch {
@@ -23,15 +23,14 @@ public class VoiceSearch {
             {"十七台", "17"}
     };
 
-    /** 关键词 → 频道 key（CCTV13 的 key=cctv13，CCTV5+ 的 key=cctv5plus）。 */
     private static final String[][] CCTV_KEYWORDS = {
-            {"体育赛事", "cctv5plus"}, {"中文国际", "cctv4"},
-            {"农业农村", "cctv17"}, {"奥林匹克", "cctv16"},
-            {"国防军事", "cctv7"}, {"社会与法", "cctv12"},
-            {"综合", "cctv1"}, {"财经", "cctv2"}, {"综艺", "cctv3"},
-            {"体育", "cctv5"}, {"电影", "cctv6"}, {"电视剧", "cctv8"},
-            {"纪录", "cctv9"}, {"科教", "cctv10"}, {"戏曲", "cctv11"},
-            {"新闻", "cctv13"}, {"少儿", "cctv14"}, {"音乐", "cctv15"}
+            {"体育赛事", "CCTV-5+ 体育赛事"}, {"中文国际", "CCTV-4 中文国际"},
+            {"农业农村", "CCTV-17 农业农村"}, {"奥林匹克", "CCTV-16 奥林匹克"},
+            {"国防军事", "CCTV-7 国防军事"}, {"社会与法", "CCTV-12 社会与法"},
+            {"综合", "CCTV-1 综合"}, {"财经", "CCTV-2 财经"}, {"综艺", "CCTV-3 综艺"},
+            {"体育", "CCTV-5 体育"}, {"电影", "CCTV-6 电影"}, {"电视剧", "CCTV-8 电视剧"},
+            {"纪录", "CCTV-9 纪录"}, {"科教", "CCTV-10 科教"}, {"戏曲", "CCTV-11 戏曲"},
+            {"新闻", "CCTV-13 新闻"}, {"少儿", "CCTV-14 少儿"}, {"音乐", "CCTV-15 音乐"}
     };
 
     private static final String[][] SPECIAL_ALIAS = {
@@ -105,8 +104,9 @@ public class VoiceSearch {
         for (int i = 0; i < CCTV_KEYWORDS.length; i++) {
             if (q.contains(CCTV_KEYWORDS[i][0])) {
                 for (Channel c : channels) {
-                    if (c.key != null && c.key.equals(CCTV_KEYWORDS[i][1])) return c.index;
+                    if (c.name.equals(CCTV_KEYWORDS[i][1])) return c.index;
                 }
+                return -1;
             }
         }
 
@@ -116,6 +116,7 @@ public class VoiceSearch {
                 for (Channel c : channels) {
                     if (c.name.equals(SPECIAL_ALIAS[i][1])) return c.index;
                 }
+                return -1;
             }
         }
 

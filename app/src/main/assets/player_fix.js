@@ -7,7 +7,7 @@
   var VW = function () { return window.innerWidth || document.documentElement.clientWidth || 1280; };
   var VH = function () { return window.innerHeight || document.documentElement.clientHeight || 720; };
   var CHANNELS = [];
-  var state = { playerReady: false, lastTime: -1, checkCount: 0 };
+  var state = { playerReady: false, lastTime: -1, checkCount: 0, sentFor: '' };
 
   // ---------- 工具 ----------
   function elRect(e) {
@@ -63,7 +63,7 @@
       p.style.width = '100vw';
       p.style.height = '100vh';
       p.style.zIndex = '2147483646';
-      p.style.objectFit = 'fill';
+      p.style.objectFit = 'contain';
       p.style.background = '#000';
     } catch (e) { return false; }
     return true;
@@ -113,6 +113,42 @@
     catch (e) { return ''; }
   }
 
+  function norm(s) {
+    return (s || '').toLowerCase().replace(/[\s\-_·:：|｜,，。.()（）]+/g, '');
+  }
+
+  // 每个频道生成候选别名：全名 / CCTV 编号前缀 / 分类词
+  function aliases(ch) {
+    var list = [];
+    list.push({ t: norm(ch.name), loose: false });
+    var m = (ch.key || '').toLowerCase().match(/cctv(\d{1,2})(plus)?/)
+            || norm(ch.name).match(/cctv\s*-?\s*(\d{1,2})(\+)?/);
+    if (m) {
+      list.push({ t: 'cctv' + m[1] + (m[2] ? '+' : ''), loose: true });
+    }
+    var parts = (ch.name || '').split(' ');
+    if (parts.length > 1 && parts[parts.length - 1]) {
+      list.push({ t: norm(parts[parts.length - 1]), loose: false });
+    }
+    return list;
+  }
+
+  function entryMatch(txt, ch) {
+    var t = norm(txt);
+    var list = aliases(ch);
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i].t;
+      if (!a) continue;
+      if (t === a) return true;
+      if (t.indexOf(a) === 0) {
+        if (list[i].loose) return true;
+        var rest = t.substring(a.length);
+        if (rest && !/^[a-z0-9\u4e00-\u9fa5]/.test(rest.charAt(0))) return true;
+      }
+    }
+    return false;
+  }
+
   function findChannelEntries() {
     var out = {};
     var all = document.querySelectorAll('body *');
@@ -121,13 +157,13 @@
       var txt = elText(el);
       if (!txt) continue;
       for (var c = 0; c < CHANNELS.length; c++) {
-        var name = CHANNELS[c];
-        if (txt === name || txt.indexOf(name + ' ') === 0) {
-          if (!out[name]) {
-            out[name] = { el: el, name: name, program: txt.replace(name, '').trim() };
-          } else if ((elRect(out[name].el) || { h: 1e9 }).h > (elRect(el) || { h: 0 }).h) {
-            out[name] = { el: el, name: name, program: txt.replace(name, '').trim() };
-          }
+        var ch = CHANNELS[c];
+        if (!entryMatch(txt, ch)) continue;
+        var nm = ch.name;
+        if (!out[nm]) {
+          out[nm] = { el: el, name: nm, program: txt.replace(nm, '').trim() };
+        } else if ((elRect(out[nm].el) || { h: 1e9 }).h > (elRect(el) || { h: 0 }).h) {
+          out[nm] = { el: el, name: nm, program: txt.replace(nm, '').trim() };
         }
       }
     }
@@ -138,7 +174,7 @@
     var entries = findChannelEntries();
     var arr = [];
     for (var c = 0; c < CHANNELS.length; c++) {
-      var name = CHANNELS[c];
+      var name = CHANNELS[c].name;
       var e = entries[name];
       arr.push({ name: name, program: e ? e.program : '' });
     }
@@ -204,7 +240,24 @@
 
   function reportState() {
     var s = captureState();
-    try { window.CctvBridge && window.CctvBridge.onPlayerState(s + ':' + (window.__currentChannelName || '')); } catch (err) {}
+    var name = window.__currentChannelName || '';
+    var res = '';
+    if (s === 'playing') {
+      try {
+        var vids = document.querySelectorAll('video');
+        for (var i = 0; i < vids.length; i++) {
+          var v = vids[i];
+          if (v.videoWidth > 0 && v.videoHeight > 0) {
+            if (state.sentFor !== name) {
+              state.sentFor = name;
+              res = v.videoWidth + 'x' + v.videoHeight;
+            }
+            break;
+          }
+        }
+      } catch (e) {}
+    }
+    try { window.CctvBridge && window.CctvBridge.onPlayerState(s + ':' + name + ':' + res); } catch (err) {}
     return s;
   }
 
@@ -212,7 +265,11 @@
   window.CctvFix = {
     init: function (channelsJson) {
       try {
-        CHANNELS = JSON.parse(channelsJson || '[]');
+        var raw = JSON.parse(channelsJson || '[]');
+        CHANNELS = [];
+        for (var i = 0; i < raw.length; i++) {
+          CHANNELS.push({ name: raw[i].name || '', key: raw[i].key || '' });
+        }
       } catch (e) { CHANNELS = []; }
       cleanup();
       try { window.CctvBridge && window.CctvBridge.onChannels('ping'); } catch (e) {}
@@ -223,6 +280,7 @@
     state: function () { return reportState(); },
     playChannel: function (name) {
       window.__currentChannelName = name;
+      state.sentFor = '';
       var entries = findChannelEntries();
       var e = entries[name];
       if (!e || !e.el) { reportState(); return false; }
